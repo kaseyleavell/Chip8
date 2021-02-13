@@ -24,6 +24,8 @@ class chip8
 		/*
 		Registers, necessary memory, etc.
 		*/
+		//Screen array
+		unsigned char gfx[WINDOW_SIZE_X * WINDOW_SIZE_Y];
 		//This will be 1 if the screen needs to draw
 		unsigned char drawFlag;
 		//16 8 bit registers
@@ -49,6 +51,8 @@ class chip8
 		unsigned char key[16];
 		//This will store the numeric values
 		unsigned int pressedKey;
+		//sleep variables
+		int sleep;
 		//establish screen class as vehicle for writing to screen
 		Screen scrn;
 		//establishes event class for keyboard events
@@ -80,7 +84,6 @@ class chip8
 		void Initialize() {
 			//This initializes all of the emulated hardware. clears all registers, etc.
 			//incrementing ints
-			
 			int i = 0;
 			drawFlag = 0;
 			//clear v registers length of 16
@@ -94,19 +97,7 @@ class chip8
 			}
 			//set the stack pointer to function properly using the first memory address available
 			sp = -1;
-			pc = 512;
-			/* Initialise SDL */
-			if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-				fprintf(stderr, "Could not initialise SDL: %s\n", SDL_GetError());
-				exit(-1);
-			}
-			//initialize the screen
-			if (scrn.InitScreen() == 1) {
-				cout << "Could not initialize screen. Fatal program error. exiting...." << endl;
-				exit(-1);
-			}
-			//clear screen
-			scrn.ClearScreen();
+			pc = 512; 
 			//clear stack
 			for (i = 0; i < 16; i++) {
 				stack[i] = 0;
@@ -118,7 +109,14 @@ class chip8
 			//set timers
 			delay_timer &=~ 0xFF;
 			sound_timer &=~ 0xFF;
+			//initializing the sleep timing
+			sleep = 17;
 		};
+		//-----------------------------------------------------------------------------------------------------------------------
+		void InitTesting() {
+			//redefine function macros for sleeping so that the cycles run as fast as possible
+			sleep = 0;
+		}
 		//-----------------------------------------------------------------------------------------------------------------------
 		int LoadGame(string gameName) {
 			//typedef basic_filebuf<char> filebuf;
@@ -136,8 +134,6 @@ class chip8
 			}
 			do {
 				c = fgetc(file);
-
-
 				bufferSize++;
 			} while (c != EOF);
 			fclose(file);
@@ -164,18 +160,11 @@ class chip8
 			opCode = mem[pc] << 8 | mem[pc + 1];		//This line gets both bytes from the memory and makes them one two byte opcode
 			//Might have to add a if statement here to make sure the opcode doesn't run if it is a zero, if that is a problem
 			//preform opCode
-			printShort2Hex(opCode);
-			cout<<endl;
-			cout << "VX:";
-			printChar2Hex(V[0x06]);   
-			cout << endl<<"VY: ";
-			printChar2Hex(V[0x07]);
-			cout << endl;
 			CallOp(opCode);
 			//opCode = 0x0000;
 			//updateTimers
 			UpdateTimers();
-			this_thread::sleep_for(chrono::milliseconds(17));
+			this_thread::sleep_for(chrono::milliseconds(sleep));
 			return 0;
 		};
 		//-----------------------------------------------------------------------------------------------------------------------
@@ -200,7 +189,6 @@ class chip8
 					/* Pass the event data onto PrintKeyInfo() */
 				case SDL_KEYDOWN:
 					//set the key value in arr key[] to 0x0F;
-					cout << "key press" << endl;
 					StoreKey(&event.key);
 					break;
 				case SDL_KEYUP:
@@ -337,10 +325,11 @@ class chip8
 					switch (op & 0x00FF) {
 					case 0x00E0:
 						//Clears the screen.
-						scrn.ClearScreen();
+						ClearScreen();
 						//increment Counter
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x00EE:
 						//Returns from a subroutine.
 						//set program counter equal to the last address put in the stack
@@ -348,6 +337,7 @@ class chip8
 						//increment counter
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					default:
 						cout << "ERROR: There is an error with the current value of UNSIGNED SHORT opCode. This code cannot be processed." << endl;
 						cout << op << endl;
@@ -355,7 +345,8 @@ class chip8
 						break;
 					};
 					break;
-					//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x1000:
 					//1NNN: go to address NNN
 					//write the opcode to the address
@@ -367,6 +358,8 @@ class chip8
 					//store the jump to address in the current address.
 					pc = add;
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x2000:
 					//2NNN: Calls subroutine at NNN.
 					//store address
@@ -380,6 +373,8 @@ class chip8
 					//store the jump to address in the current address.
 					pc = add;
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x3000:
 					//3XNN: Skips the next instruction if VX equals NN.
 					//OpCode & 0x0F00 >> 8 isolates the 4 bit register identifier and bit shifts it to make it useful
@@ -391,6 +386,8 @@ class chip8
 					}
 					//usually the next instruction is a jumpto (used to skip code block)
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x4000:
 					//4XNN: Skips the next instruction if VX doesn't equal NN
 					if (VX != (op & 0x00FF)) {
@@ -401,6 +398,8 @@ class chip8
 					}
 					//Usually the next instruction is a jump to skip a code block
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x5000:
 					//5XY0: Skips the next instruction if VX equals VY
 					if (VX == VY) {
@@ -411,20 +410,25 @@ class chip8
 					}
 					//Usually the next instruction is a jump to skip a code block
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x6000:
 					//6XNN: sets VX to NN
 					VX = (0x00FF & op);
 					//go to next instruction
 					NextInstruction();
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x7000:
 					//7XNN: Adds NN to VX. (Carry flag is not changed)
 					VX += (0x00FF & op);
 					//go to next instruction
 					NextInstruction();
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x8000:
-					//----------------------------------------------------------------------------------------------------------------------------
 					//another switch for all of the 0x8xxx instructions
 					switch (op & 0x000F) {
 					case 0x0000:
@@ -433,24 +437,28 @@ class chip8
 						//iterate program
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x0001:
 						//0x8XY1: Sets VX to VX or VY. (Bitwise OR operation)
 						VX = VX | VY;
 						//iterate program
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x0002:
 						//0x8XY2: Sets VX to VX and VY. (Bitwise AND operation)
 						VX = VX & VY;
 						//move to next instruction
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x0003:
 						//0x8XY3: Sets VX to VX xor VY.
 						VX = VX ^ VY;
 						//move to next
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x0004:
 						//0x8XY4: Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't.
 						//check for overflow conditions
@@ -467,12 +475,14 @@ class chip8
 						NextInstruction();
 						//set VF if there is a carry
 						break;
+						//-------------------------------------------------------
 					case 0x0005:
 						//0x8XY5: VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
 						DetectBorrowPBP(&VX, &VY, &VF);
 						
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x0006:
 						//0x8XY6: Stores the least significant bit of VX in VF and then shifts VX to the right by 1
 						//Setting the bit with an if statement to keep with the set standard
@@ -485,6 +495,7 @@ class chip8
 						//next instruction
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x0007:
 						//0x8XY7: Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
 						//Variables
@@ -510,6 +521,7 @@ class chip8
 						//next instruction
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					case 0x000E:
 						//0x8XYE: Stores the most significant bit of VX in VF and then shifts VX to the left by 1
 						VF = 0;
@@ -521,6 +533,7 @@ class chip8
 						//next instruction
 						NextInstruction();
 						break;
+						//-------------------------------------------------------
 					default:
 						cout << "ERROR: There is an error with the current value of UNSIGNED SHORT opCode. This code cannot be processed." << endl;
 						cout << op << endl;
@@ -528,7 +541,8 @@ class chip8
 						break;
 					};
 					break;
-					//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0x9000:
 					//9XY0:Skips the next instruction if VX doesn't equal VY.
 					if (VX != VY) {
@@ -539,21 +553,29 @@ class chip8
 					}
 					//(Usually the next instruction is a jump to skip a code block)
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0xA000:
 					//ANNN: 	Sets I to the address NNN
 					I = (0x0FFF & op);
 					//increment program counter
 					NextInstruction();
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0xB000:
 					//0xBNNN: Jumps to the address NNN plus V0
 					pc = (op & 0x0FFF) + V[0];
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0xC000:
 					//CXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN.
 					VX = (0x00FF & op) & (rand() % 256);
 					NextInstruction();
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0xD000:
 					//DXYN: 	Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height
 					//of N+1 pixels. Each row of 8 pixels is read as bit-coded starting from memory
@@ -563,6 +585,8 @@ class chip8
 					V[0x0F] = DrawSprite(V[(0x0F00 & op) >> 8]-1, V[(0x00F0 & op) >> 4], (op & 0x000F));
 					NextInstruction();
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0xE000:
 					switch (op & 0x00FF) {
 					case 0x009E:
@@ -575,6 +599,7 @@ class chip8
 						}
 						ClearKeys();
 						break;
+						//-------------------------------------------------------
 					case 0x00A1:
 						//if key pressed does not equal VX skip next line
 						if (key[VX] != 0x0F) {
@@ -587,8 +612,9 @@ class chip8
 						break;
 					};
 					break;
+				//----------------------------------------------------------------------------------------------------------------------------
+				//----------------------------------------------------------------------------------------------------------------------------
 				case 0xF000:
-					//----------------------------------------------------------------------------------------------------------------------------
 					//A nested switch for all of the F instructions
 					switch (op & 0x00FF) {
 						case 0x0007:
@@ -596,6 +622,7 @@ class chip8
 							VX = delay_timer;
 							NextInstruction();
 							break;
+							//-------------------------------------------------------
 						case 0x000A:
 							/*
 							This may be a problematic way of doing this action considering the way the keypad is organized
@@ -618,21 +645,25 @@ class chip8
 								//do nothing this is the blocking code
 							}
 							break;
+							//-------------------------------------------------------
 						case 0x0015:
 							//Sets the delay timer to VX.
 							delay_timer = VX;
 							NextInstruction();
 							break;
+							//-------------------------------------------------------
 						case 0x0018:
 							//Sets the sound timer to VX.
 							sound_timer = VX;
 							NextInstruction();
 							break;
+							//-------------------------------------------------------
 						case 0x001E:
 							//	Adds VX to I. VF is not affected.
 							I = VX + I;
 							NextInstruction();
 							break;
+							//-------------------------------------------------------
 						case 0x0029:
 							/*
 							NOT COMPLETE: This will probably need to cooridinate with the Screen class.
@@ -643,6 +674,7 @@ class chip8
 							NextInstruction();
 							//(in hexadecimal) are represented by a 4x5 font.
 							break;
+							//-------------------------------------------------------
 						case 0x0033:
 							//Stores the binary - coded decimal representation of VX, with the most 
 							//significant of three digits at the address in I, the middle digit at I 
@@ -659,6 +691,7 @@ class chip8
 							mem[I + 2] = ((temp % 100) % 10);
 							NextInstruction();
 							break;
+							//-------------------------------------------------------
 						case 0x0055:
 							//0xFX55: Stores V0 to VX (including VX) in memory starting at address I. The offset from 
 							//I is increased by 1 for each value written, but I itself is left unmodified
@@ -667,6 +700,7 @@ class chip8
 							}
 							NextInstruction();
 							break;
+							//-------------------------------------------------------
 						case 0x0065:
 							//Fills V0 to VX (including VX) with values from memory starting at address I.  
 							//The offset from I is increased by 1 for each value written, but I itself is left
@@ -676,12 +710,13 @@ class chip8
 							}
 							NextInstruction();
 							break;
+							//-------------------------------------------------------
 						default:
 							cout << "ERROR: There is an error with the current value of UNSIGNED SHORT opCode. This code cannot be processed." << endl;
 							cout << op << endl;
 							exit(0);
 							break;
-					//----------------------------------------------------------------------------------------------------------------------------
+							//-------------------------------------------------------
 					};
 					break;
 				default:
@@ -791,6 +826,37 @@ class chip8
 			}
 		}
 		//______________________________________________________________________________
+		/*unsigned char DrawSpriteOld(unsigned char X, unsigned char Y, unsigned char i) {
+			//preform the things described in the 0xDXXX opcode instruction
+			int j = 0;
+			int k = 0;
+			int x = (int)X;
+			int y = (int)Y;
+			unsigned char collisionFlag = 0;
+			unsigned char temp = 0x00;
+			//the row
+			for (j = 0; j < (int)i; j++) {
+				//the column (8 pix wide)
+				//setting the temp equal to appropriate memory location, getting ready for a bit shift
+				temp = mem[I + j];
+				for (k = 0; k < 8; k++) {
+					//This will test the most significant bit first
+					/*
+					Kasey make sure this is the correct way to do this
+					
+					if (temp & 0x80) {
+						//draw the pixel
+						if (scrn.DrawPixel(x + k, y + j)) {
+							collisionFlag =0x01;
+						}
+					}
+					//left bitshifting temp
+					temp = temp << 1;
+				}
+			}
+			//if pixel goes to zero,
+			return collisionFlag;
+		}*/
 		unsigned char DrawSprite(unsigned char X, unsigned char Y, unsigned char i) {
 			//preform the things described in the 0xDXXX opcode instruction
 			int j = 0;
@@ -811,22 +877,35 @@ class chip8
 					*/
 					if (temp & 0x80) {
 						//draw the pixel
-						if (scrn.DrawPixel(x + k, y + j)) {
-							collisionFlag =0x01;
+						//if the xor is equal to zero, set collision flag
+						gfx[((y + j) * WINDOW_SIZE_X) + (x + k)] ^= 1;
+						if ((gfx[((y+j)* WINDOW_SIZE_X)+(x+k)])==0) {
+							collisionFlag = 0x01;
 						}
 					}
 					//left bitshifting temp
 					temp = temp << 1;
 				}
 			}
+			//set draw flag
+			drawFlag = 1;
 			//if pixel goes to zero,
 			return collisionFlag;
 		}
+		//----------------------------------------------------------------------------------
+		void ClearScreen() {
+			std::cout << "cleared" << std::endl;
+			for (int i = 0; i < WINDOW_SIZE_X * WINDOW_SIZE_Y; i++) {
+				gfx[i] = 0;
+			}
+			//set draw flag
+			drawFlag = 1;
+		}
+		//------------------------------------------------------------------------------------
 		void printShort2Hex(unsigned short var) {
 			//This will print the hex value of a piece of short memory
 			int buff = var;
 			cout << hex << setfill('0') << setw(4) << buff << " ";
-
 		};
 		void printChar2Hex(unsigned char var) {
 			int buff = var;
