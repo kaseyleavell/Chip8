@@ -109,12 +109,14 @@ void InitTesting() {
     myChip8.InitTesting();
     return;
 }
+//Used for debugging
 void printShort2Hex(unsigned short var) {
     //This will print the hex value of a piece of short memory
     int buff = var;
     cout << hex << setfill('0') << setw(4) << buff << " ";
 
 };
+//Used for debugging
 void printChar2Hex(unsigned char var) {
     int buff = var;
     cout << hex << setfill('0') << setw(2) << buff << " ";
