@@ -44,6 +44,8 @@ class Screen
 
 			return 0;
 		};
+		//This function would only draw one pixel at a time which was inefficient (given the SDL library) and not true to the Chip 8 hardware
+		//I have it commented out because it was a part of the iteration process for this piece of software
 		//This will be fed the x and y coordinates of the pixel. the function will translate that to a group of pixels
 		/*int DrawPixel(int x, int y) {
 			int i = 0;
