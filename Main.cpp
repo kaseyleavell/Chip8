@@ -95,6 +95,8 @@ void setupGraphics() {
 void setupInput() {
     /*
     Finish
+    To be used to give the user the option to play several different preloaded games. As it stands right now the user has to manually add Pong to the project folder
+    And add it to the file reader file
     */
     //using libraries to impliment the inputs
     return;
